@@ -49,7 +49,27 @@ def get_last_session():
 
 
 def get_logs(session_id):
-    return fetch("workoutlog", {"session": session_id})["results"]
+    url = f"{BASE_URL}/workoutlog/"
+    params = {"session": session_id, "limit": 20}
+
+    all_results = []
+
+    while url:
+        r = requests.get(url, headers=headers, params=params)
+        r.raise_for_status()
+        data = r.json()
+
+        all_results.extend(data["results"])
+
+        # after first request, params must NOT be reused
+        url = data.get("next")
+        if url:
+            url = url.replace("http:", "https:")
+        params = None  # important: only send params on first call
+
+    return all_results
+
+
 
 
 def get_exercise_name(exercise_id, cache={}):
