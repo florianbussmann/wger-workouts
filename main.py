@@ -1,5 +1,7 @@
+from collections import defaultdict
 import requests
 import json
+
 
 import os
 from dotenv import load_dotenv
@@ -70,6 +72,9 @@ def get_logs(session_id):
     return all_results
 
 
+def get_slot_map():
+    data = fetch("slot-entry")
+    return {s["id"]: s for s in data["results"]}
 
 
 def get_exercise_name(exercise_id, cache={}):
@@ -93,11 +98,64 @@ def build_workout(session):
             {
                 "exercise": get_exercise_name(log["exercise"]),
                 "reps": float(log["repetitions"]) if log.get("repetitions") else None,
+                "slot_entry": int(log["slot_entry"]) if log.get("slot_entry") else None,
                 "weight": float(log["weight"]) if log.get("weight") else None,
             }
         )
 
     return result
+
+
+def format_workout(data):
+    logs = data["sets"]
+
+    slot_map = get_slot_map()
+    # group by slot_entry
+    slots = defaultdict(list)
+    for log in logs:
+        slots[log["slot_entry"]].append(log)
+
+    lines = []
+    lines.append("🏋️ Workout —")
+
+    slot_items = defaultdict(list)
+
+    for s in slot_map.values():
+        slot_items[s["slot"]].append(s)
+
+    slot_overview = {
+        slot_id: {
+            "exercises": len(items),
+            "is_superset": len(items) > 1,
+            "slots": items
+        }
+        for slot_id, items in slot_items.items()
+    }
+
+    last_slot = None
+
+    for _, (slot_id, entries) in enumerate(sorted(slots.items()), start=1):
+        slot_info = slot_map.get(slot_id, {})
+        if last_slot != slot_info.get("slot"):
+            lines.append("")
+            last_slot = slot_info.get("slot")
+            if slot_overview.get(last_slot).get("is_superset"):
+                lines.append(f"Superset {last_slot}:")
+
+        # all entries in a slot belong to ONE exercise
+        exercise = entries[0]["exercise"]
+        lines.append(f"{exercise}")
+
+        for e in entries:
+            reps = int(float(e.get("reps") or 0))
+            weight = float(e.get("weight") or 0)
+
+            if weight > 0:
+                lines.append(f"- {reps} reps @ {int(weight)} kg")
+            else:
+                lines.append(f"- {reps} reps")
+
+    return "\n".join(lines)
 
 
 def main():
@@ -111,6 +169,8 @@ def main():
 
     workout = build_workout(session)
     export_workout(workout)
+
+    print(format_workout(workout))
 
 
 if __name__ == "__main__":
