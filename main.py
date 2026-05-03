@@ -16,6 +16,7 @@ def read_env(env, default=None):
 API_KEY = read_env("API_KEY")
 BASE_URL = read_env("BASE_URL", "https://wger.de/api/v2")
 PREFERRED_LANG = int(read_env("PREFERRED_LANG", 2))
+PAGE_LIMIT = int(read_env("PAGE_LIMIT", 50))
 
 
 headers = {"Authorization": f"Token {API_KEY}", "Accept": "application/json"}
@@ -51,15 +52,15 @@ def get_last_session():
 
 
 def get_logs(session_id):
-    url = f"{BASE_URL}/workoutlog/"
-    params = {"session": session_id, "limit": 20}
+    return get_paginated(endpoint="workoutlog", params={"session": session_id, "limit": PAGE_LIMIT})
+
+def get_paginated(endpoint, params={"limit": PAGE_LIMIT}):
+    url = f"{BASE_URL}/{endpoint}/"
 
     all_results = []
 
     while url:
-        r = requests.get(url, headers=headers, params=params)
-        r.raise_for_status()
-        data = r.json()
+        data = fetch(endpoint, params)
 
         all_results.extend(data["results"])
 
@@ -71,10 +72,8 @@ def get_logs(session_id):
 
     return all_results
 
-
 def get_slot_map():
-    data = fetch("slot-entry")
-    return {s["id"]: s for s in data["results"]}
+    return {s["id"]: s for s in get_paginated("slot-entry")}
 
 
 def get_exercise_name(exercise_id, cache={}):
