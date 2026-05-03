@@ -52,7 +52,10 @@ def get_last_session():
 
 
 def get_logs(session_id):
-    return get_paginated(endpoint="workoutlog", params={"session": session_id, "limit": PAGE_LIMIT})
+    return get_paginated(
+        endpoint="workoutlog", params={"session": session_id, "limit": PAGE_LIMIT}
+    )
+
 
 def get_paginated(endpoint, params={"limit": PAGE_LIMIT}):
     url = f"{BASE_URL}/{endpoint}/"
@@ -71,6 +74,7 @@ def get_paginated(endpoint, params={"limit": PAGE_LIMIT}):
         params = None  # important: only send params on first call
 
     return all_results
+
 
 def get_slot_map():
     return {s["id"]: s for s in get_paginated("slot-entry")}
@@ -120,15 +124,17 @@ def format_workout(data):
     slot_items = defaultdict(list)
 
     for s in slot_map.values():
-        slot_items[s["slot"]].append(s)
+        if s["id"] in slots:
+            slot_items[s["slot"]].append(s)
 
     slot_overview = {
         slot_id: {
             "exercises": len(items),
+            "idx": idx,
             "is_superset": len(items) > 1,
-            "slots": items
+            "slots": items,
         }
-        for slot_id, items in slot_items.items()
+        for idx, (slot_id, items) in enumerate(slot_items.items(), start=1)
     }
 
     last_slot = None
@@ -139,7 +145,7 @@ def format_workout(data):
             lines.append("")
             last_slot = slot_info.get("slot")
             if slot_overview.get(last_slot).get("is_superset"):
-                lines.append(f"Superset {last_slot}:")
+                lines.append(f"Superset {slot_overview.get(last_slot).get("idx")}:")
 
         # all entries in a slot belong to ONE exercise
         exercise = entries[0]["exercise"]
